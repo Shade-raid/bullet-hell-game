@@ -1,128 +1,124 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Bullet Hell Game</title>
-  <style>
-    canvas {
-      border: 1px solid black;
-    }
-  </style>
-</head>
-<body>
-  <canvas id="gameCanvas" width="800" height="600"></canvas>
+import pygame
+import random
 
-  <script>
-    // Get the game canvas
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
+# Initialize Pygame
+pygame.init()
 
-    // Define the player
-    const player = {
-      x: canvas.width / 2,
-      y: canvas.height - 50,
-      width: 30,
-      height: 30,
-      speed: 5
-    };
+# Set up the game window
+screen_width = 800
+screen_height = 600
+screen = pygame.display.set_mode((screen_width, screen_height))
+pygame.display.set_caption("Bullet Hell Game")
 
-    // Define the bullets
-    const bullets = [];
+# Define colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
 
-    // Define the enemies
-    const enemies = [];
+# Define the player class
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((50, 50))
+        self.image.fill(RED)
+        self.rect = self.image.get_rect()
+        self.rect.center = (screen_width // 2, screen_height - 50)
+        self.speed = 5
 
-    // Generate enemies
-    function generateEnemies() {
-      const enemy = {
-        x: Math.random() * (canvas.width - 30),
-        y: -30,
-        width: 30,
-        height: 30,
-        speed: Math.random() * 2 + 1
-      };
-      enemies.push(enemy);
-    }
+    def update(self):
+        # Move the player based on key presses
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT] and self.rect.left > 0:
+            self.rect.x -= self.speed
+        if keys[pygame.K_RIGHT] and self.rect.right < screen_width:
+            self.rect.x += self.speed
 
-    // Handle player movement
-    function movePlayer(e) {
-      if (e.key === "ArrowLeft" && player.x > 0) {
-        player.x -= player.speed;
-      } else if (e.key === "ArrowRight" && player.x + player.width < canvas.width) {
-        player.x += player.speed;
-      }
-    }
+    def shoot(self):
+        bullet = Bullet(self.rect.centerx, self.rect.top)
+        all_sprites.add(bullet)
+        bullets.add(bullet)
 
-    // Handle shooting bullets
-    function shootBullet() {
-      const bullet = {
-        x: player.x + player.width / 2,
-        y: player.y,
-        width: 5,
-        height: 10,
-        speed: 7
-      };
-      bullets.push(bullet);
-    }
+# Define the enemy class
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((30, 30))
+        self.image.fill(WHITE)
+        self.rect = self.image.get_rect()
+        self.rect.x = random.randint(0, screen_width - self.rect.width)
+        self.rect.y = random.randint(-100, -40)
+        self.speed = random.randint(1, 3)
 
-    // Update game state
-    function update() {
-      // Move bullets
-      bullets.forEach(bullet => {
-        bullet.y -= bullet.speed;
-      });
+    def update(self):
+        self.rect.y += self.speed
+        if self.rect.top > screen_height + 10:
+            self.rect.x = random.randint(0, screen_width - self.rect.width)
+            self.rect.y = random.randint(-100, -40)
+            self.speed = random.randint(1, 3)
+            player.score += 1
 
-      // Move enemies
-      enemies.forEach(enemy => {
-        enemy.y += enemy.speed;
-      });
+# Define the bullet class
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((5, 10))
+        self.image.fill(RED)
+        self.rect = self.image.get_rect()
+        self.rect.centerx = x
+        self.rect.bottom = y
+        self.speed = -10
 
-      // Remove off-screen bullets
-      bullets.forEach((bullet, bulletIndex) => {
-        if (bullet.y < 0) {
-          bullets.splice(bulletIndex, 1);
-        }
-      });
+    def update(self):
+        self.rect.y += self.speed
+        if self.rect.bottom < 0:
+            self.kill()
 
-      // Remove collided bullets and enemies
-      bullets.forEach((bullet, bulletIndex) => {
-        enemies.forEach((enemy, enemyIndex) => {
-          if (
-            bullet.x < enemy.x + enemy.width &&
-            bullet.x + bullet.width > enemy.x &&
-            bullet.y < enemy.y + enemy.height &&
-            bullet.y + bullet.height > enemy.y
-          ) {
-            bullets.splice(bulletIndex, 1);
-            enemies.splice(enemyIndex, 1);
-          }
-        });
-      });
+# Create player and groups for sprites
+player = Player()
+all_sprites = pygame.sprite.Group()
+all_sprites.add(player)
+enemies = pygame.sprite.Group()
+bullets = pygame.sprite.Group()
 
-      // Game over condition
-      enemies.forEach(enemy => {
-        if (
-          player.x < enemy.x + enemy.width &&
-          player.x + player.width > enemy.x &&
-          player.y < enemy.y + enemy.height &&
-          player.y + player.height > enemy.y
-        ) {
-          clearInterval(gameLoop);
-          alert("Game Over!");
-        }
-      });
-    }
+# Generate initial enemies
+for _ in range(8):
+    enemy = Enemy()
+    all_sprites.add(enemy)
+    enemies.add(enemy)
 
-    // Draw game objects on the canvas
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+# Set up the game clock
+clock = pygame.time.Clock()
 
-      // Draw player
-      ctx.fillStyle = "red";
-      ctx.fillRect(player.x, player.y, player.width, player.height);
+# Game loop
+running = True
+while running:
+    # Process events
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                player.shoot()
 
-      // Draw
+    # Update
+    all_sprites.update()
 
-    pygame.display.update()
+    # Check for bullet collisions with enemies
+    bullet_hits = pygame.sprite.groupcollide(bullets, enemies, True, True)
 
-# quit pygame
+    # Generate new enemies
+    if len(enemies) < 8:
+        enemy = Enemy()
+        all_sprites.add(enemy)
+        enemies.add(enemy)
+
+    # Draw
+    screen.fill(BLACK)
+    all_sprites.draw(screen)
+    pygame.display.flip()
+
+    # Set the desired frame rate
+    clock.tick(60)
+
+# Quit the game
 pygame.quit()
