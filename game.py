@@ -15,6 +15,11 @@ BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 RED = (255, 0, 0)
 
+# Load game sounds
+shoot_sound = pygame.mixer.Sound("shoot.wav")
+enemy_hit_sound = pygame.mixer.Sound("enemy_hit.wav")
+game_over_sound = pygame.mixer.Sound("game_over.wav")
+
 # Define the player class
 class Player(pygame.sprite.Sprite):
     def __init__(self):
@@ -23,7 +28,11 @@ class Player(pygame.sprite.Sprite):
         self.image.fill(RED)
         self.rect = self.image.get_rect()
         self.rect.center = (screen_width // 2, screen_height - 50)
-        self.speed = 5
+        self.speed = 8
+        self.shoot_delay = 250
+        self.last_shot = pygame.time.get_ticks()
+        self.health = 3
+        self.score = 0
 
     def update(self):
         # Move the player based on key presses
@@ -34,9 +43,14 @@ class Player(pygame.sprite.Sprite):
             self.rect.x += self.speed
 
     def shoot(self):
-        bullet = Bullet(self.rect.centerx, self.rect.top)
-        all_sprites.add(bullet)
-        bullets.add(bullet)
+        # Shoot bullets at specified interval
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_shot > self.shoot_delay:
+            bullet = Bullet(self.rect.centerx, self.rect.top)
+            all_sprites.add(bullet)
+            bullets.add(bullet)
+            self.last_shot = current_time
+            shoot_sound.play()
 
 # Define the enemy class
 class Enemy(pygame.sprite.Sprite):
@@ -55,7 +69,6 @@ class Enemy(pygame.sprite.Sprite):
             self.rect.x = random.randint(0, screen_width - self.rect.width)
             self.rect.y = random.randint(-100, -40)
             self.speed = random.randint(1, 3)
-            player.score += 1
 
 # Define the bullet class
 class Bullet(pygame.sprite.Sprite):
@@ -89,6 +102,9 @@ for _ in range(8):
 # Set up the game clock
 clock = pygame.time.Clock()
 
+# Game over flag
+game_over = False
+
 # Game loop
 running = True
 while running:
@@ -97,24 +113,63 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE:
+            if event.key == pygame.K_SPACE and not game_over:
                 player.shoot()
+            elif event.key == pygame.K_RETURN and game_over:
+                # Reset the game
+                game_over = False
+                player.health = 3
+                player.score = 0
+                all_sprites.empty()
+                bullets.empty()
+                enemies.empty()
+                for _ in range(8):
+                    enemy = Enemy()
+                    all_sprites.add(enemy)
+                    enemies.add(enemy)
+                pygame.mixer.music.play()
 
     # Update
-    all_sprites.update()
+    if not game_over:
+        all_sprites.update()
 
-    # Check for bullet collisions with enemies
-    bullet_hits = pygame.sprite.groupcollide(bullets, enemies, True, True)
+        # Check for bullet collisions with enemies
+        bullet_hits = pygame.sprite.groupcollide(bullets, enemies, True, True)
+        for hit_enemies in bullet_hits.values():
+            player.score += len(hit_enemies)
+            enemy_hit_sound.play()
 
-    # Generate new enemies
-    if len(enemies) < 8:
-        enemy = Enemy()
-        all_sprites.add(enemy)
-        enemies.add(enemy)
+        # Check for enemy collisions with player
+        enemy_hits = pygame.sprite.spritecollide(player, enemies, True)
+        if enemy_hits:
+            player.health -= 1
+            if player.health == 0:
+                game_over = True
+                pygame.mixer.music.stop()
+                game_over_sound.play()
 
     # Draw
     screen.fill(BLACK)
     all_sprites.draw(screen)
+
+    # Draw player health and score
+    font = pygame.font.Font(None, 36)
+    health_text = font.render(f"Health: {player.health}", True, WHITE)
+    score_text = font.render(f"Score: {player.score}", True, WHITE)
+    screen.blit(health_text, (10, 10))
+    screen.blit(score_text, (screen_width - score_text.get_width() - 10, 10))
+
+    if game_over:
+        # Draw game over text
+        game_over_text = font.render("Game Over", True, RED)
+        text_rect = game_over_text.get_rect(center=(screen_width // 2, screen_height // 2))
+        screen.blit(game_over_text, text_rect)
+
+        # Draw instructions to restart
+        restart_text = font.render("Press Enter to Restart", True, WHITE)
+        restart_rect = restart_text.get_rect(center=(screen_width // 2, screen_height // 2 + 50))
+        screen.blit(restart_text, restart_rect)
+
     pygame.display.flip()
 
     # Set the desired frame rate
