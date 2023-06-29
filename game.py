@@ -19,6 +19,7 @@ RED = (255, 0, 0)
 shoot_sound = pygame.mixer.Sound("shoot.wav")
 enemy_hit_sound = pygame.mixer.Sound("enemy_hit.wav")
 game_over_sound = pygame.mixer.Sound("game_over.wav")
+pygame.mixer.music.load("background_music.mp3")
 
 # Define the player class
 class Player(pygame.sprite.Sprite):
@@ -62,6 +63,8 @@ class Enemy(pygame.sprite.Sprite):
         self.rect.x = random.randint(0, screen_width - self.rect.width)
         self.rect.y = random.randint(-100, -40)
         self.speed = random.randint(1, 3)
+        self.bullet_delay = random.randint(1000, 3000)
+        self.last_shot = pygame.time.get_ticks()
 
     def update(self):
         self.rect.y += self.speed
@@ -69,6 +72,16 @@ class Enemy(pygame.sprite.Sprite):
             self.rect.x = random.randint(0, screen_width - self.rect.width)
             self.rect.y = random.randint(-100, -40)
             self.speed = random.randint(1, 3)
+        self.shoot()
+
+    def shoot(self):
+        # Shoot bullets at specified interval
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_shot > self.bullet_delay:
+            bullet = Bullet(self.rect.centerx, self.rect.bottom)
+            all_sprites.add(bullet)
+            enemy_bullets.add(bullet)
+            self.last_shot = current_time
 
 # Define the bullet class
 class Bullet(pygame.sprite.Sprite):
@@ -83,7 +96,7 @@ class Bullet(pygame.sprite.Sprite):
 
     def update(self):
         self.rect.y += self.speed
-        if self.rect.bottom < 0:
+        if self.rect.bottom < 0 or self.rect.top > screen_height:
             self.kill()
 
 # Create player and groups for sprites
@@ -92,6 +105,7 @@ all_sprites = pygame.sprite.Group()
 all_sprites.add(player)
 enemies = pygame.sprite.Group()
 bullets = pygame.sprite.Group()
+enemy_bullets = pygame.sprite.Group()
 
 # Generate initial enemies
 for _ in range(8):
@@ -102,8 +116,9 @@ for _ in range(8):
 # Set up the game clock
 clock = pygame.time.Clock()
 
-# Game over flag
+# Game over flag and score tracking
 game_over = False
+score = 0
 
 # Game loop
 running = True
@@ -119,10 +134,11 @@ while running:
                 # Reset the game
                 game_over = False
                 player.health = 3
-                player.score = 0
+                score = 0
                 all_sprites.empty()
                 bullets.empty()
                 enemies.empty()
+                enemy_bullets.empty()
                 for _ in range(8):
                     enemy = Enemy()
                     all_sprites.add(enemy)
@@ -136,17 +152,26 @@ while running:
         # Check for bullet collisions with enemies
         bullet_hits = pygame.sprite.groupcollide(bullets, enemies, True, True)
         for hit_enemies in bullet_hits.values():
-            player.score += len(hit_enemies)
+            score += len(hit_enemies)
             enemy_hit_sound.play()
 
         # Check for enemy collisions with player
         enemy_hits = pygame.sprite.spritecollide(player, enemies, True)
-        if enemy_hits:
+        for _ in enemy_hits:
             player.health -= 1
-            if player.health == 0:
-                game_over = True
-                pygame.mixer.music.stop()
-                game_over_sound.play()
+            enemy_hit_sound.play()
+
+        # Check for enemy bullet collisions with player
+        enemy_bullet_hits = pygame.sprite.spritecollide(player, enemy_bullets, True)
+        if enemy_bullet_hits:
+            player.health -= 1
+            enemy_hit_sound.play()
+
+        # Check if the player runs out of health
+        if player.health <= 0:
+            game_over = True
+            pygame.mixer.music.stop()
+            game_over_sound.play()
 
     # Draw
     screen.fill(BLACK)
@@ -155,7 +180,7 @@ while running:
     # Draw player health and score
     font = pygame.font.Font(None, 36)
     health_text = font.render(f"Health: {player.health}", True, WHITE)
-    score_text = font.render(f"Score: {player.score}", True, WHITE)
+    score_text = font.render(f"Score: {score}", True, WHITE)
     screen.blit(health_text, (10, 10))
     screen.blit(score_text, (screen_width - score_text.get_width() - 10, 10))
 
